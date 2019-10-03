@@ -1,0 +1,104 @@
+# -*- mode:org; fill-column:79; -*-
+
+#+title:WL-Parser
+#+subtitle:{{{version}}} ({{{date}}})
+#+author:LOLH
+#+date:2019-10-03 01:12
+#+macro:version Version 0.0.1
+
+#+begin_src elisp :results silent :exports results
+(org-babel-tangle-file "WL-Parser.org")
+#+end_src
+
+* Introduction
+  :PROPERTIES:
+  :unnumbered: t
+  :END:
+The program parses worklog daily and yearly files into an object.
+
+* The Record Parser
+A worklog daily and yearly file contains the following structure:
+
+#+begin_example
+1. datetime start
+2. \tcase
+3. \t\tSUBJECT --- VERB
+4. \t\t\tTYPE
+5. \s------------------------------------------------------------------------------
+6. \sDETAIL
+   \sDETAIL
+7. \s------------------------------------------------------------------------------
+8. datetime end
+9. \n
+#+end_example
+
+Records are separated by a blank line.
+
+A regular expression representing a worklog record:
+
+#+caption:Regular Expression Representing a Worklog Record
+#+name:regexp-worklog-record
+#+header: :mkdirp yes
+#+begin_src js -n :tangle src/wl_parser.js
+const WLRE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:00)$\n^\s+(.{6})$\n^\s+(.*?) --- (.*?)$\n^\s+(.*?)$\n^\s-{78}$\n^\s(.*?)^\s-{78}$\n^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:00)$/ms;
+
+const STR=`2019-01-02T10:30:00
+        180704
+                STATUS UPDATE --- SW PHONE
+                        TIME
+ ------------------------------------------------------------------------------
+ Received call from SW; Client has been removed from his housing; SW is
+ picking him up and will be finding a new place for him to stay.
+ ------------------------------------------------------------------------------
+2019-01-02T10:36:00
+
+2019-01-02T14:00:00
+        180203
+                NEGOTIATION --- CLIENT PHONE
+                        TIME
+ ------------------------------------------------------------------------------
+ Spoke with Client about terms of counter-offer.  Will propose flat amount of
+ $900 per month.
+ ------------------------------------------------------------------------------
+2019-01-02T14:30:00
+
+`;
+
+  const result = WLRE.exec(STR);
+
+  const start_date = RegExp.$1;
+  const start_time = RegExp.$2;
+  const caseno     = RegExp.$3;
+  const subject    = RegExp.$4;
+  const verb       = RegExp.$5;
+  const type       = RegExp.$6;
+  const message    = RegExp.$7;
+  const end_date   = RegExp.$8;
+  const end_time   = RegExp.$9;
+
+  const m = message.replace(/\n/gm, '');
+
+  console.log(`Start: ${start_date} T ${start_time}\nCase No: ${caseno}\nSubject: ${subject}\tVerb: ${verb}\nType: ${type}`);
+  console.log(`${m}`);
+  console.log(`End: ${end_date} T ${end_time}`);
+#+end_src
+
+* The Record Object
+
+* Concept Index
+  :PROPERTIES:
+  :unnumbered: 5
+  :index:    cp
+  :END:
+
+* Macro Definitions                                                :noexport:
+#+macro:heading @@texinfo:@heading @@$1
+#+macro:subheading @@texinfo:@subheading @@$1
+#+macro:noindent @@texinfo:@noindent @@
+
+* Local Variables                                                  :noexport:
+# Local Variables:
+# time-stamp-pattern:"8/^\\#\\+date:%4y-%02m-%02d %02H:%02M$"
+# eval: (org-indent-mode)
+# eval: (electric-quote-local-mode)
+# End:
