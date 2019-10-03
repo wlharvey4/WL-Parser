@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-03 01:12
-#+macro:version Version 0.0.1
+#+date:2019-10-03 10:09
+#+macro:version Version 0.0.2
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -84,6 +84,23 @@ const STR=`2019-01-02T10:30:00
 #+end_src
 
 * The Record Object
+
+* Makefile
+:PROPERTIES:
+:appendix: t
+:END:
+#+caption:Makefile
+#+name:Makefile
+#+begin_src make -n :tangle Makefile
+.PHONY:	clean clean-world
+
+clean:
+	-rm *~
+
+clean-world:	clean
+	-rm *.{info,texi}
+	-rm -rf src/
+#+end_src
 
 * Concept Index
   :PROPERTIES:
