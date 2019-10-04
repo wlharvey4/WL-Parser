@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-03 10:09
-#+macro:version Version 0.0.2
+#+date:2019-10-03 19:21
+#+macro:version Version 0.0.3
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -16,55 +16,239 @@
   :END:
 The program parses worklog daily and yearly files into an object.
 
+* Install the WL-Parser Package
+
+The following shell scripts install the project’s ~package.json~ file, install
+~jest~ as a development dependency, install all ~node~ dependencies, and
+finally adds a =test= script to the ~package.json~.
+
+** Install ~package.json~
+#+caption:Install the WL-Parser Package and Dependencies
+#+name:install-wl-parser-package-and-dependencies
+#+header: :results output :exports both
+#+begin_src sh
+yarn init -yp
+yarn add --dev jest
+#+end_src
+
+** Add a =test= Script to ~package.json~
+#+caption:Add /tests/ script to ~package.json~
+#+name:add-tests-script-to-package.json
+#+header: :results output :exports both
+#+begin_src js
+const fs = require('fs');
+const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+package.scripts = {"tests": "jest"};
+fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
+#+end_src
+
+#+caption:The ~package.json~ file with added /tests/ script
+#+begin_src sh :results output :exports both
+cat package.json
+#+end_src
+
 * The Record Parser
-A worklog daily and yearly file contains the following structure:
+A proper worklog entry conforms to the following structure:
 
 #+begin_example
-1. datetime start
-2. \tcase
+1. datetime start: 2019-01-31T10:54:00
+2. \tcase: 190301
 3. \t\tSUBJECT --- VERB
-4. \t\t\tTYPE
+4. \t\t\tTYPE: e.g. TIME | EXPENSE | ...
 5. \s------------------------------------------------------------------------------
-6. \sDETAIL
-   \sDETAIL
+6. \sDETAIL : possible multiple lines in length
+   \sDETAIL ...
 7. \s------------------------------------------------------------------------------
-8. datetime end
-9. \n
+8. datetime end: 2019-01-31T11:00:00
+9. record separator: \n
 #+end_example
 
-Records are separated by a blank line.
+*Note:* Record entries must be separated by a blank line.
 
-A regular expression representing a worklog record:
+** Create the ~wl_re~ Regular Expressions
+The following code sets up the individual regular expressions for each
+component of a worklog entry.  The export object is the combined regular
+expression for the entire worklog entry.
 
-#+caption:Regular Expression Representing a Worklog Record
-#+name:regexp-worklog-record
+If an entry requires special processing at the time of parsing, as does the
+=message= entry below, which needs newlines stripped, place the component name
+in an array in position 0, and a lambda expression to run the entry through in
+position 1.  The WL_Parser will look for an object in each component entry, and
+if one is found, run the entry through the lambda expression.
+
+*Note:* The true structure of the 2nd, 3rd, and 4th lines include one, two and
+three tabs, respectively, at the beginning of the lines, but for the sake of
+avoiding problems with different editors handling SPACES vs TABS, I am using
+only SPACES, and not TABS.
+
+#+caption:Regular Expression Representing a Worklog Entry
+#+name:regexp-worklog-entry
 #+header: :mkdirp yes
-#+begin_src js -n :tangle src/wl_parser.js
-const WLRE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:00)$\n^\s+(.{6})$\n^\s+(.*?) --- (.*?)$\n^\s+(.*?)$\n^\s-{78}$\n^\s(.*?)^\s-{78}$\n^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:00)$/ms;
+#+begin_src js -n :tangle src/wl_re.js
+  /* wl_re.js */
 
-const STR=`2019-01-02T10:30:00
-        180704
-                STATUS UPDATE --- SW PHONE
-                        TIME
- ------------------------------------------------------------------------------
- Received call from SW; Client has been removed from his housing; SW is
- picking him up and will be finding a new place for him to stay.
- ------------------------------------------------------------------------------
-2019-01-02T10:36:00
+  const WL_COMPONENTS = [
+    'original',
+    'start_date',
+    'start_time',
+    'caseno',
+    'subject',
+    'verb',
+    'type',
+    ['message', m => m.replace(/\n/gm, '')],
+    'end_date',
+    'end_time',
+    'record_sep'
+  ];
 
-2019-01-02T14:00:00
-        180203
-                NEGOTIATION --- CLIENT PHONE
-                        TIME
- ------------------------------------------------------------------------------
- Spoke with Client about terms of counter-offer.  Will propose flat amount of
- $900 per month.
- ------------------------------------------------------------------------------
-2019-01-02T14:30:00
+  /* REGEXP COMPONENTS OF A WORKLOG ENTRY */
+  const DATETIME_RE = '^(\\d{4}-\\d{2}-\\d{2})T(\\d{2}:\\d{2}:00)$\\n';
+  const CASE_RE     = '^\\s+(.{6})$\\n';
+  const SUBJ_VERB_RE= '^\\s+(.*?) --- (.*?)$\\n';
+  const TYPE_RE     = '^\\s+(.*?)$\\n';
+  const MESSAGE_RE  = '^\\s-{78}$\\n^\\s(.*?)^\\s-{78}$\\n'
+  const RECORD_SEP  = '^(\\n)';
 
-`;
+  /* COMBINED REGULAR EXPRESSION FOR ENTIRE WORKLOG ENTRY */
+  const wl_re = new RegExp(
+    DATETIME_RE  +
+    CASE_RE      +
+    SUBJ_VERB_RE +
+    TYPE_RE      +
+    MESSAGE_RE   +
+    DATETIME_RE  +
+    RECORD_SEP,
+    'ms'
+  );
 
-  const result = WLRE.exec(STR);
+  module.exports = {wl_re, WL_COMPONENTS};
+#+end_src
+
+** Create the ~wl_entry_parser~ Module
+The following class receives a worklog entry as a string and uses the ~wl_re~
+module to parse and return its components.  Note that the parser must check
+each WL_COMPONENT entry for an object (array in this case), and if one is
+found, then it runs the entry through the supplied lambda expression in the
+array's second position.
+
+#+caption:The ~wl_entry_parser~ Module
+#+name:wl_entry_parser-module
+#+header: :mkdirp yes
+#+begin_src js :tangle src/wl_entry_parser.js
+  /* wl_parser.js */
+
+  const {wl_re, WL_COMPONENTS} = require('./wl_re.js');
+
+  class WLEntryParser {
+
+      constructor(wl_entry) {
+          const parsed = wl_re.exec(wl_entry);
+
+          if (!parsed) { 
+              throw ReferenceError(`wl_entry:\n${wl_entry}\nfailed to parse`)
+          }
+
+          this._parsed_entry = parsed.map((e,i) => {
+              let key = WL_COMPONENTS[i];
+              if (typeof key === 'object') {  // see WL_COMPONENTS[7]
+                  e = WL_COMPONENTS[i][1](e); // run e through the supplied lambda function
+                  key = WL_COMPONENTS[i][0];  // use the string key
+              }
+
+              const components = {};
+              components[key] = e;
+              return components;
+          });
+      }
+
+      get entry() {
+          return Object.assign({}, this._parsed_entry);
+      }
+  }
+
+  module.exports = WLEntryParser;
+#+end_src
+
+#+RESULTS: wl_parser-module
+
+** Test the ~wl_entry_parser~ Module
+
+*NOTE:* The following sample entries sometimes shift to the right by a couple
+of spaces upon a save of the file.  If an test entry fails to parse, make sure
+there is no space before either datetime and there is one space only before the
+message detail and enclosing dotted lines.
+
+#+header: :mkdirp yes
+#+begin_src js -n :tangle __tests__/wl_entry_parser.test.js
+      const Parser = require('../src/wl_entry_parser');
+
+      const STR=
+  `2019-01-02T10:30:00
+            180704
+                    STATUS UPDATE --- SW PHONE
+                            TIME
+   ------------------------------------------------------------------------------
+   Received call from SW; Client has been removed from his housing; SW is
+   picking him up and will be finding a new place for him to stay.
+   ------------------------------------------------------------------------------
+  2019-01-02T10:36:00
+
+  2019-01-02T14:00:00
+          180203
+                  NEGOTIATION --- CLIENT PHONE
+                          TIME
+   ------------------------------------------------------------------------------
+   Spoke with Client about terms of counter-offer.  Will propose flat amount of
+   $900 per month.
+   ------------------------------------------------------------------------------
+  2019-01-02T14:30:00
+
+  `;
+
+  describe('The WLEntryParser', () => {
+      test('throws with an invalid entry', () => {
+          expect(() => {
+              new Parser('abc')
+          }).toThrow(ReferenceError);
+      });
+      test('does not throw with a valid entry', () => {
+          expect(() => {
+              new Parser(STR);
+          }).not.toThrow();
+      });
+  });
+#+end_src
+
+** Check the ~wl_re~ Regular Expression Implementation
+#+caption:Check WL_RE
+#+name:check-wl_re
+#+header: :mkdirp yes
+#+begin_src js -n :tangle __tests__/check.js
+  const {wl_re, WL_COMPONENTS} = require('../src/wl_re.js');
+
+  const STR=`2019-01-02T10:30:00
+          180704
+                  STATUS UPDATE --- SW PHONE
+                          TIME
+   ------------------------------------------------------------------------------
+   Received call from SW; Client has been removed from his housing; SW is
+   picking him up and will be finding a new place for him to stay.
+   ------------------------------------------------------------------------------
+  2019-01-02T10:36:00
+
+  2019-01-02T14:00:00
+          180203
+                  NEGOTIATION --- CLIENT PHONE
+                          TIME
+   ------------------------------------------------------------------------------
+   Spoke with Client about terms of counter-offer.  Will propose flat amount of
+   $900 per month.
+   ------------------------------------------------------------------------------
+   2019-01-02T14:30:00
+
+  `;
+
+  const result = wl_re.exec(STR);
 
   const start_date = RegExp.$1;
   const start_time = RegExp.$2;
@@ -75,12 +259,18 @@ const STR=`2019-01-02T10:30:00
   const message    = RegExp.$7;
   const end_date   = RegExp.$8;
   const end_time   = RegExp.$9;
+  const record_sep = result[10];
 
-  const m = message.replace(/\n/gm, '');
+  const mess_sep_re = /\n/gm;
+  const mess = message.replace(mess_sep_re, '');
 
+  console.log(STR)
+  console.log('--------------');
   console.log(`Start: ${start_date} T ${start_time}\nCase No: ${caseno}\nSubject: ${subject}\tVerb: ${verb}\nType: ${type}`);
-  console.log(`${m}`);
+  console.log(`${mess}`);
   console.log(`End: ${end_date} T ${end_time}`);
+  console.log(`RS: ${record_sep}`);
+  console.log('--------------');
 #+end_src
 
 * The Record Object
@@ -92,14 +282,17 @@ const STR=`2019-01-02T10:30:00
 #+caption:Makefile
 #+name:Makefile
 #+begin_src make -n :tangle Makefile
-.PHONY:	clean clean-world
+.PHONY:	clean clean-world check
 
 clean:
 	-rm *~
 
 clean-world:	clean
-	-rm *.{info,texi}
-	-rm -rf src/
+	-rm *.{info,texi,json,lock}
+	-rm -rf src/ __tests__/ node_modules/
+
+check:
+	node __tests__/check.js
 #+end_src
 
 * Concept Index
