@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-04 08:03
-#+macro:version Version 0.0.5
+#+date:2019-10-04 12:04
+#+macro:version Version 0.0.6
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -285,24 +285,46 @@ reading all records.
 #+name:WLReader-class
 #+header: :mkdirp yes
 #+begin_src js -n :tangle src/wl_reader.js
-  /* log_reader.js */
+    /* wl_reader.js */
+
   const EventEmitter = require('events').EventEmitter;
-  const fs = require('fs');
-  const rl = require('readline');
+  const fs       = require('fs');
+  const path     = require('path');
+  const rl       = require('readline');
+  const TODAY    = new Date();
+  const YEAR     = TODAY.getUTCFullYear(TODAY);
+  const MIN_YEAR = 2016;
+  const WORKLOG  = process.env.WORKLOG;
+  if (!WORKLOG)
+      throw new ReferenceError('Environment variable WORKLOG is undefined.');
 
   class WLReader extends EventEmitter {
-      constructor(logfile, rec_sep) {
+      constructor(wlyear, rec_sep) {
+          if (typeof wlyear !== 'number' ||
+              wlyear < MIN_YEAR          ||
+              wlyear > YEAR)
+              throw new RangeError(`Year '${wlyear}' must be between ${MIN_YEAR} and ${YEAR}`);
+
+          if (!(rec_sep instanceof RegExp))
+              throw new AssertionError(`The record separator ('${rec_sep}') should be a RegExp`);
+
           super();
-          this._logfile = logfile;
+	
+          this._logfile = path.format({
+              dir: WORKLOG,
+              name: `worklog.${YEAR}`,
+              ext: '.otl'
+          });
+
           this._rec_sep = rec_sep;
           this._entry = '';
 
-          if (!fs.existsSync(logfile)) {
-              throw new Error(`Logfile '${logfile}' does not exist`);
+          if (!fs.existsSync(this._logfile)) {
+              throw new Error(`Logfile '${this._logfile}' does not exist`);
               process.exit(1);
           }
 
-          this._rs = fs.createReadStream(logfile, {
+          this._rs = fs.createReadStream(this._logfile, {
               encoding: 'utf8',
               emitClose: true,
           });
@@ -331,7 +353,7 @@ reading all records.
       }
   }
 
-module.exports = WLReader;
+  module.exports = WLReader;
 #+end_src
 
 ** Testing the WLReader
@@ -346,24 +368,28 @@ module.exports = WLReader;
   const WLParser= require('../src/wl_parser');
   const WORKLOG = process.env.WORKLOG;
   const LOGNAME = 'worklog.2019.otl';
+  const YEAR    = (new Date()).getUTCFullYear();
   const REC_SEP = /^$/;
 
-  if (!WORKLOG) throw new ReferenceError('The environment variable `WORKLOG` is not defined');
-
-  const logfile = path.format({
-      dir:  WORKLOG,
-      name: LOGNAME
-  });
-
   describe('The WLReader', () => {
+      test('throws an error when the year is too early', () => {
+          expect(() => {
+              new WLR(2000, /^$/);
+          }).toThrow(RangeError);
+      });
+      test('throws an error when the year is in the future', () => {
+          expect(() => {
+              new WLR(YEAR+1, REC_SEP);
+          }).toThrow(RangeError);
+      });
       test('reads a log file', () => {
           expect(() => {
-              new WLR(logfile, REC_SEP)
+              new WLR(2019, REC_SEP)
           }).not.toThrow();
       });
       test('prints a log file', done => {
           let entry;
-          const wlr = new WLR(logfile, REC_SEP);
+          const wlr = new WLR(YEAR, REC_SEP);
           wlr.on('entry', entry => {
               entry = new WLParser(entry);
           }).on('done', done);
@@ -373,22 +399,52 @@ module.exports = WLReader;
   });
 #+end_src
 
-* The DataLogger
-The DataLogger class receives each of the worklog records from the LogReader,
-parses the record using the WLParser, and emits messages for each type of
-record found, such as TIME, EXPENSE, PAYMENT, etc.  The record itself is sent
-with each message.
+#+RESULTS: test-log-reader
 
-** Implementation of the DataLogger
+* The WLData Module
+The WLData class receives each of the worklog records from the WLReader, parses
+the record using the WLParser, and emits messages for each type of record
+found, such as TIME, EXPENSE, PAYMENT, etc.  The record itself is sent with
+each message.
 
-#+caption:Implementation of the DataLogger class
-#+name:DataLogger-class
-#+begin_src js -n :tangle src/data_logger.js
-  /* data_logger.js */
+** Implementing the WLData Module
+
+#+caption:Implementing the WLData module
+#+name:WLData-module
+#+begin_src js -n :tangle src/wl_data.js
+  /* wl_data.js */
 
   const EventEmitter = require('events').EventEmitter;
+  const WLReader = require('./wl_reader');
+
+  class WLData extends EventEmitter {
+      constructor(wlyear, rec_sep) {
+          super();
+          this._wlreader = new WLReader(wlyear, rec_sep);
+      }
+  }
+
+  module.exports = WLData;
 #+end_src
-w
+
+** Testing the WLData Module
+
+#+caption:Testing the WLData module
+#+name:WLData-module-tests
+#+begin_src js -n :tangle __tests__/wl_data.test.js
+  /* wl_data.test.js */
+
+  const WLReader = require('../src/wl_reader');
+  const YEAR     = (new Date()).getUTCFullYear();
+  const REC_SEP  = /^$/;
+
+  describe('The WLData Module initialization', () => {
+      it('the WLData class initializes', () => {
+          expect(new WLReader(YEAR, REC_SEP)).toBeInstanceOf(WLReader);
+      });
+  });
+#+end_src
+
 * Makefile
 :PROPERTIES:
 :appendix: t
