@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-04 00:39
-#+macro:version Version 0.0.4
+#+date:2019-10-04 08:03
+#+macro:version Version 0.0.5
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -47,7 +47,7 @@ fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 cat package.json
 #+end_src
 
-* The Record Parser
+* The WLParser Class
 A proper worklog entry conforms to the following structure:
 
 #+begin_example
@@ -124,31 +124,31 @@ only SPACES, and not TABS.
   module.exports = {wl_re, WL_COMPONENTS};
 #+end_src
 
-** Create the ~wl_entry_parser~ Module
-The following class receives a worklog entry as a string and uses the ~wl_re~
+** Create the ~wl_parser~ Module
+The following class receives a worklog record as a string and uses the ~wl_re~
 module to parse and return its components.  Note that the parser must check
 each WL_COMPONENT entry for an object (array in this case), and if one is
 found, then it runs the entry through the supplied lambda expression in the
 array's second position.
 
-#+caption:The ~wl_entry_parser~ Module
-#+name:wl_entry_parser-module
+#+caption:The ~wl_parser~ Module
+#+name:wl_parser-module
 #+header: :mkdirp yes
-#+begin_src js :tangle src/wl_entry_parser.js
+#+begin_src js :tangle src/wl_parser.js
   /* wl_parser.js */
 
   const {wl_re, WL_COMPONENTS} = require('./wl_re.js');
 
-  class WLEntryParser {
+  class WLParser {
 
-      constructor(wl_entry) {
-          const parsed = wl_re.exec(wl_entry);
+      constructor(wl_record) {
+          const parsed = wl_re.exec(wl_record);
 
           if (!parsed) { 
-              throw ReferenceError(`wl_entry:\n${wl_entry}\nfailed to parse`)
+              throw ReferenceError(`wl_record:\n${wl_record}\nfailed to parse`)
           }
 
-          this._parsed_entry = parsed.map((e,i) => {
+          this._parsed_record = parsed.map((e,i) => {
               let key = WL_COMPONENTS[i];
               if (typeof key === 'object') {  // see WL_COMPONENTS[7]
                   e = WL_COMPONENTS[i][1](e); // run e through the supplied lambda function
@@ -162,25 +162,25 @@ array's second position.
       }
 
       get entry() {
-          return Object.assign({}, this._parsed_entry);
+          return Object.assign({}, this._parsed_record);
       }
   }
 
-  module.exports = WLEntryParser;
+  module.exports = WLParser;
 #+end_src
 
 #+RESULTS: wl_parser-module
 
-** Test the ~wl_entry_parser~ Module
+** Test the ~wl_parser~ Module
 
-*NOTE:* The following sample entries sometimes shift to the right by a couple
-of spaces upon a save of the file.  If an test entry fails to parse, make sure
+*NOTE:* The following sample records sometimes shift to the right by a couple
+of spaces upon a save of the file.  If a test record fails to parse, make sure
 there is no space before either datetime and there is one space only before the
 message detail and enclosing dotted lines.
 
 #+header: :mkdirp yes
-#+begin_src js -n :tangle __tests__/wl_entry_parser.test.js
-      const Parser = require('../src/wl_entry_parser');
+#+begin_src js -n :tangle __tests__/wl_parser.test.js
+      const Parser = require('../src/wl_parser');
 
       const STR=
   `2019-01-02T10:30:00
@@ -205,7 +205,7 @@ message detail and enclosing dotted lines.
 
   `;
 
-  describe('The WLEntryParser', () => {
+  describe('The WLParser', () => {
       test('throws with an invalid entry', () => {
           expect(() => {
               new Parser('abc')
@@ -273,24 +273,24 @@ message detail and enclosing dotted lines.
   console.log('--------------');
 #+end_src
 
-* The Log Reader
+* The WLReader Class
 The Log Reader is a Stream Reader that reads records from a log file given the
 name of the log file and a record separator.  The Reader emits a signal with
 each record read.  The Reader emits a finished signal at the conclusion of
 reading all records.
 
-** Implementation of the Log Reader
+** Implementation of the WLReader
 
-#+caption:Implementation of the Log Reader
-#+name:log-reader-implementation
+#+caption:Implementation of the WLReader
+#+name:WLReader-class
 #+header: :mkdirp yes
-#+begin_src js -n :tangle src/log_reader.js
+#+begin_src js -n :tangle src/wl_reader.js
   /* log_reader.js */
   const EventEmitter = require('events').EventEmitter;
   const fs = require('fs');
   const rl = require('readline');
 
-  class LogReader extends EventEmitter {
+  class WLReader extends EventEmitter {
       constructor(logfile, rec_sep) {
           super();
           this._logfile = logfile;
@@ -331,19 +331,19 @@ reading all records.
       }
   }
 
-module.exports = LogReader;
+module.exports = WLReader;
 #+end_src
 
-** Testing the Log Reader
+** Testing the WLReader
 
-#+caption:Testing the Log Reader
+#+caption:Testing the WLReader
 #+name:test-log-reader
-#+begin_src js -n :tangle __tests__/log_reader.test.js
+#+begin_src js -n :tangle __tests__/wl_reader.test.js
   /* log_reader.test.js */
 
   const path    = require('path');
-  const LR      = require('../src/log_reader');
-  const WLParser= require('../src/wl_entry_parser');
+  const WLR     = require('../src/wl_reader');
+  const WLParser= require('../src/wl_parser');
   const WORKLOG = process.env.WORKLOG;
   const LOGNAME = 'worklog.2019.otl';
   const REC_SEP = /^$/;
@@ -355,24 +355,40 @@ module.exports = LogReader;
       name: LOGNAME
   });
 
-  describe('The Log Reader', () => {
+  describe('The WLReader', () => {
       test('reads a log file', () => {
           expect(() => {
-              new LR(logfile, REC_SEP)
+              new WLR(logfile, REC_SEP)
           }).not.toThrow();
       });
       test('prints a log file', done => {
           let entry;
-          const lr = new LR(logfile, REC_SEP);
-          lr.on('entry', entry => {
+          const wlr = new WLR(logfile, REC_SEP);
+          wlr.on('entry', entry => {
               entry = new WLParser(entry);
           }).on('done', done);
 
-          lr.read();
+          wlr.read();
       });
   });
 #+end_src
 
+* The DataLogger
+The DataLogger class receives each of the worklog records from the LogReader,
+parses the record using the WLParser, and emits messages for each type of
+record found, such as TIME, EXPENSE, PAYMENT, etc.  The record itself is sent
+with each message.
+
+** Implementation of the DataLogger
+
+#+caption:Implementation of the DataLogger class
+#+name:DataLogger-class
+#+begin_src js -n :tangle src/data_logger.js
+  /* data_logger.js */
+
+  const EventEmitter = require('events').EventEmitter;
+#+end_src
+w
 * Makefile
 :PROPERTIES:
 :appendix: t
