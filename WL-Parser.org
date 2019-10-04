@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-04 12:04
-#+macro:version Version 0.0.6
+#+date:2019-10-04 16:00
+#+macro:version Version 0.0.7
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -148,21 +148,19 @@ array's second position.
               throw ReferenceError(`wl_record:\n${wl_record}\nfailed to parse`)
           }
 
-          this._parsed_record = parsed.map((e,i) => {
+           parsed.forEach((e,i) => {
               let key = WL_COMPONENTS[i];
               if (typeof key === 'object') {  // see WL_COMPONENTS[7]
                   e = WL_COMPONENTS[i][1](e); // run e through the supplied lambda function
                   key = WL_COMPONENTS[i][0];  // use the string key
               }
 
-              const components = {};
-              components[key] = e;
-              return components;
+              this[key] = e;
           });
       }
 
       get entry() {
-          return Object.assign({}, this._parsed_record);
+          return this;// Object.assign({}, this._record);
       }
   }
 
@@ -401,49 +399,76 @@ reading all records.
 
 #+RESULTS: test-log-reader
 
-* The WLData Module
-The WLData class receives each of the worklog records from the WLReader, parses
+* The WLType Module
+The WLType class receives each of the worklog records from the WLReader, parses
 the record using the WLParser, and emits messages for each type of record
-found, such as TIME, EXPENSE, PAYMENT, etc.  The record itself is sent with
-each message.
+found, such as TIME, EXPENSE, PAYMENT, etc, as well as for each record under
+the message =entry=.  The record itself is sent with each message.
 
-** Implementing the WLData Module
+** Implementing the WLType Module
 
-#+caption:Implementing the WLData module
-#+name:WLData-module
+#+caption:Implementing the WLType module
+#+name:WLType-module
 #+begin_src js -n :tangle src/wl_data.js
   /* wl_data.js */
 
   const EventEmitter = require('events').EventEmitter;
   const WLReader = require('./wl_reader');
+  const WLParser = require('./wl_parser');
 
-  class WLData extends EventEmitter {
+  class WLType extends EventEmitter {
       constructor(wlyear, rec_sep) {
           super();
-          this._wlreader = new WLReader(wlyear, rec_sep);
+          this._wl_reader = new WLReader(wlyear, rec_sep);
+      }
+
+      parse() {
+          this._wl_reader.on('entry', wl_record => {
+              const record = new WLParser(wl_record);
+              this.emit('record', record);
+              this.emit(record.type, record);
+          }).on('done', () => this.emit('parsed'));
+
+          this._wl_reader.read();
       }
   }
 
-  module.exports = WLData;
+  module.exports = WLType;
 #+end_src
 
-** Testing the WLData Module
+** Testing the WLType Module
 
-#+caption:Testing the WLData module
-#+name:WLData-module-tests
+#+caption:Testing the WLType module
+#+name:WLType-module-tests
 #+begin_src js -n :tangle __tests__/wl_data.test.js
   /* wl_data.test.js */
 
-  const WLReader = require('../src/wl_reader');
+  const WLType = require('../src/wl_data');
   const YEAR     = (new Date()).getUTCFullYear();
   const REC_SEP  = /^$/;
 
-  describe('The WLData Module initialization', () => {
-      it('the WLData class initializes', () => {
-          expect(new WLReader(YEAR, REC_SEP)).toBeInstanceOf(WLReader);
+  describe('The WLType Module initialization', () => {
+      it('the WLType class initializes', () => {
+          expect(new WLType(YEAR, REC_SEP)).toBeInstanceOf(WLType);
+      });
+  });
+
+  describe('A WLType instance', () => {
+      let data;
+      beforeEach(() => {
+          data = new WLType(YEAR, REC_SEP);
+      });
+      it('produces the event for TIME', done => {
+          data.on('TIME', time_record => {
+              expect(time_record).toHaveProperty('type');
+              done();
+          });
+          data.parse();
       });
   });
 #+end_src
+
+#+RESULTS: WLType-module-tests
 
 * Makefile
 :PROPERTIES:
