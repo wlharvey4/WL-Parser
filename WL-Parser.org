@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-03 19:21
-#+macro:version Version 0.0.3
+#+date:2019-10-04 00:39
+#+macro:version Version 0.0.4
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -223,7 +223,7 @@ message detail and enclosing dotted lines.
 #+caption:Check WL_RE
 #+name:check-wl_re
 #+header: :mkdirp yes
-#+begin_src js -n :tangle __tests__/check.js
+#+begin_src js -n :tangle src/check.js
   const {wl_re, WL_COMPONENTS} = require('../src/wl_re.js');
 
   const STR=`2019-01-02T10:30:00
@@ -273,7 +273,105 @@ message detail and enclosing dotted lines.
   console.log('--------------');
 #+end_src
 
-* The Record Object
+* The Log Reader
+The Log Reader is a Stream Reader that reads records from a log file given the
+name of the log file and a record separator.  The Reader emits a signal with
+each record read.  The Reader emits a finished signal at the conclusion of
+reading all records.
+
+** Implementation of the Log Reader
+
+#+caption:Implementation of the Log Reader
+#+name:log-reader-implementation
+#+header: :mkdirp yes
+#+begin_src js -n :tangle src/log_reader.js
+  /* log_reader.js */
+  const EventEmitter = require('events').EventEmitter;
+  const fs = require('fs');
+  const rl = require('readline');
+
+  class LogReader extends EventEmitter {
+      constructor(logfile, rec_sep) {
+          super();
+          this._logfile = logfile;
+          this._rec_sep = rec_sep;
+          this._entry = '';
+
+          if (!fs.existsSync(logfile)) {
+              throw new Error(`Logfile '${logfile}' does not exist`);
+              process.exit(1);
+          }
+
+          this._rs = fs.createReadStream(logfile, {
+              encoding: 'utf8',
+              emitClose: true,
+          });
+      }
+
+      read() {
+          const rl_interface = rl.createInterface({
+              input: this._rs
+          });
+
+          rl_interface.on('line', line => {
+              this._entry += (line + '\n');    
+
+              if (this._rec_sep.test(line)) {
+                  this.emit('entry', this._entry);
+                  this._entry = '';
+              }
+
+          }).on('close', () => {
+              this.emit('done');
+
+          }).on('error', err => {
+              console.error(`ERROR: ${err.message}`);
+
+          });
+      }
+  }
+
+module.exports = LogReader;
+#+end_src
+
+** Testing the Log Reader
+
+#+caption:Testing the Log Reader
+#+name:test-log-reader
+#+begin_src js -n :tangle __tests__/log_reader.test.js
+  /* log_reader.test.js */
+
+  const path    = require('path');
+  const LR      = require('../src/log_reader');
+  const WLParser= require('../src/wl_entry_parser');
+  const WORKLOG = process.env.WORKLOG;
+  const LOGNAME = 'worklog.2019.otl';
+  const REC_SEP = /^$/;
+
+  if (!WORKLOG) throw new ReferenceError('The environment variable `WORKLOG` is not defined');
+
+  const logfile = path.format({
+      dir:  WORKLOG,
+      name: LOGNAME
+  });
+
+  describe('The Log Reader', () => {
+      test('reads a log file', () => {
+          expect(() => {
+              new LR(logfile, REC_SEP)
+          }).not.toThrow();
+      });
+      test('prints a log file', done => {
+          let entry;
+          const lr = new LR(logfile, REC_SEP);
+          lr.on('entry', entry => {
+              entry = new WLParser(entry);
+          }).on('done', done);
+
+          lr.read();
+      });
+  });
+#+end_src
 
 * Makefile
 :PROPERTIES:
@@ -292,7 +390,7 @@ clean-world:	clean
 	-rm -rf src/ __tests__/ node_modules/
 
 check:
-	node __tests__/check.js
+	node src/check.js
 #+end_src
 
 * Concept Index
