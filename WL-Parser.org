@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-04 16:00
-#+macro:version Version 0.0.7
+#+date:2019-10-04 16:43
+#+macro:version Version 0.0.8
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -444,8 +444,16 @@ the message =entry=.  The record itself is sent with each message.
   /* wl_data.test.js */
 
   const WLType = require('../src/wl_data');
+  const {wl_re, WL_COMPONENTS} = require('../src/wl_re');
   const YEAR     = (new Date()).getUTCFullYear();
   const REC_SEP  = /^$/;
+
+  const keys = WL_COMPONENTS.map(
+      c =>
+          typeof c === 'object' ?
+          c[0]                  :
+          c
+  );
 
   describe('The WLType Module initialization', () => {
       it('the WLType class initializes', () => {
@@ -461,6 +469,14 @@ the message =entry=.  The record itself is sent with each message.
       it('produces the event for TIME', done => {
           data.on('TIME', time_record => {
               expect(time_record).toHaveProperty('type');
+              done();
+          });
+          data.parse();
+      });
+      it('has all the keys in WL_COMPONENTS', done => {
+          data.on('record', record => {
+              const record_keys = Object.keys(record);
+              expect(record_keys).toEqual(keys);
               done();
           });
           data.parse();
