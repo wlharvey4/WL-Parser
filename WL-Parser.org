@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-04 16:43
-#+macro:version Version 0.0.8
+#+date:2019-10-05 08:17
+#+macro:version Version 0.0.9
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -47,7 +47,7 @@ fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 cat package.json
 #+end_src
 
-* The WLParser Class
+* The WLParser Module
 A proper worklog entry conforms to the following structure:
 
 #+begin_example
@@ -271,13 +271,13 @@ message detail and enclosing dotted lines.
   console.log('--------------');
 #+end_src
 
-* The WLReader Class
+* The WLReader Module
 The Log Reader is a Stream Reader that reads records from a log file given the
 name of the log file and a record separator.  The Reader emits a signal with
 each record read.  The Reader emits a finished signal at the conclusion of
 reading all records.
 
-** Implementation of the WLReader
+** Implementation of the WLReader Module
 
 #+caption:Implementation of the WLReader
 #+name:WLReader-class
@@ -354,7 +354,7 @@ reading all records.
   module.exports = WLReader;
 #+end_src
 
-** Testing the WLReader
+** Testing the WLReader Module
 
 #+caption:Testing the WLReader
 #+name:test-log-reader
@@ -409,7 +409,7 @@ the message =entry=.  The record itself is sent with each message.
 
 #+caption:Implementing the WLType module
 #+name:WLType-module
-#+begin_src js -n :tangle src/wl_data.js
+#+begin_src js -n :tangle src/wl_type.js
   /* wl_data.js */
 
   const EventEmitter = require('events').EventEmitter;
@@ -440,10 +440,10 @@ the message =entry=.  The record itself is sent with each message.
 
 #+caption:Testing the WLType module
 #+name:WLType-module-tests
-#+begin_src js -n :tangle __tests__/wl_data.test.js
-  /* wl_data.test.js */
+#+begin_src js -n :tangle __tests__/wl_type.test.js
+  /* wl_type.test.js */
 
-  const WLType = require('../src/wl_data');
+  const WLType = require('../src/wl_type');
   const {wl_re, WL_COMPONENTS} = require('../src/wl_re');
   const YEAR     = (new Date()).getUTCFullYear();
   const REC_SEP  = /^$/;
@@ -485,6 +485,82 @@ the message =entry=.  The record itself is sent with each message.
 #+end_src
 
 #+RESULTS: WLType-module-tests
+
+* The WLChecks Module
+Finding checks and their information is a bedeviling problem with the Worklog
+setup as it is.  This module is designed to find checks, parse out their
+information, create an object, and emit a message with the check information.
+This module uses the WLType module to find types that contain check
+information, such as =EXPENSE= and =TRUST= payments.
+
+** Implement the WLChecks Module
+
+#+caption:Implement the WLChecks module
+#+name:WLChecks-module
+#+begin_src js -n :tangle src/wl_checks.js
+  /* wl_check.js */
+
+  const EventEmitter = require('events').EventEmitter;
+  const WLType = require('./wl_type');
+
+  class WLChecks extends EventEmitter {
+      constructor(year, rec_sep) {
+          super();
+          this._checks = [];
+          const wltype = new WLType(year, rec_sep);
+          wltype.on('TRUST', trust_record => {
+              this.emit('check', trust_record);
+              this._checks.push(trust_record);
+              /* parse the trust record for check info */
+          }).on('parsed', () => {
+              this.emit('checked', this._checks);
+          }).on('error', err => {
+              console.error(`Received an error: ${err.message}`);
+              throw(err);
+          });
+          wltype.parse();
+      }
+
+      get all() {
+          return this._checks;
+      }
+  }
+
+  module.exports = WLChecks;
+#+end_src
+
+** Test the WLChecks Module
+
+{{{version}}} {{{date}}}
+
+#+caption:Test the WLChecks module
+#+name:WLChecks-module-test
+#+begin_src js -n :tangle __tests__/wl_checks.test.js
+  /* wl_checks.test.js */
+
+  const WLChecks = require('../src/wl_checks');
+  const YEAR     = new Date().getUTCFullYear();
+  const REC_SEP  = /^$/;
+
+  let checks;
+
+  beforeAll(done => {
+      checks = new WLChecks(YEAR, REC_SEP);
+      done();
+  });
+
+  describe('WLChecks', () => {
+      it('checks is a WLChecks', () => {
+          expect(checks).toBeInstanceOf(WLChecks);
+      });
+  });
+
+  describe('An instance of WLChecks', () => {
+      test('checks is an Array', () => {
+          expect(checks.all).toBeInstanceOf(Array);
+      });
+  });
+#+end_src
 
 * Makefile
 :PROPERTIES:
