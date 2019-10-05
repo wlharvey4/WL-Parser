@@ -3,8 +3,8 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-05 08:17
-#+macro:version Version 0.0.9
+#+date:2019-10-05 10:21
+#+macro:version Version 0.0.10
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WL-Parser.org")
@@ -277,7 +277,7 @@ name of the log file and a record separator.  The Reader emits a signal with
 each record read.  The Reader emits a finished signal at the conclusion of
 reading all records.
 
-** Implementation of the WLReader Module
+** Implementing the WLReader Module
 
 #+caption:Implementation of the WLReader
 #+name:WLReader-class
@@ -295,22 +295,23 @@ reading all records.
   const WORKLOG  = process.env.WORKLOG;
   if (!WORKLOG)
       throw new ReferenceError('Environment variable WORKLOG is undefined.');
+  const REC_SEP  = /^$/;
 
   class WLReader extends EventEmitter {
-      constructor(wlyear, rec_sep) {
-          if (typeof wlyear !== 'number' ||
-              wlyear < MIN_YEAR          ||
-              wlyear > YEAR)
-              throw new RangeError(`Year '${wlyear}' must be between ${MIN_YEAR} and ${YEAR}`);
+      constructor(wl_year, rec_sep=REC_SEP) {
+          if (typeof wl_year !== 'number' ||
+              wl_year < MIN_YEAR          ||
+              wl_year > YEAR)
+              throw new RangeError(`Year '${wl_year}' must be between ${MIN_YEAR} and ${YEAR}`);
 
           if (!(rec_sep instanceof RegExp))
               throw new AssertionError(`The record separator ('${rec_sep}') should be a RegExp`);
 
           super();
-	
+
           this._logfile = path.format({
               dir: WORKLOG,
-              name: `worklog.${YEAR}`,
+              name: `worklog.${wl_year}`,
               ext: '.otl'
           });
 
@@ -365,14 +366,13 @@ reading all records.
   const WLR     = require('../src/wl_reader');
   const WLParser= require('../src/wl_parser');
   const WORKLOG = process.env.WORKLOG;
-  const LOGNAME = 'worklog.2019.otl';
   const YEAR    = (new Date()).getUTCFullYear();
   const REC_SEP = /^$/;
 
   describe('The WLReader', () => {
       test('throws an error when the year is too early', () => {
           expect(() => {
-              new WLR(2000, /^$/);
+              new WLR(2000, REC_SEP);
           }).toThrow(RangeError);
       });
       test('throws an error when the year is in the future', () => {
@@ -385,9 +385,14 @@ reading all records.
               new WLR(2019, REC_SEP)
           }).not.toThrow();
       });
+      test('reads a log file using a default record separator', () => {
+          expect(() => {
+              new WLR(2016)
+          }).not.toThrow();
+      });
       test('prints a log file', done => {
           let entry;
-          const wlr = new WLR(YEAR, REC_SEP);
+          const wlr = new WLR(YEAR);
           wlr.on('entry', entry => {
               entry = new WLParser(entry);
           }).on('done', done);
@@ -415,11 +420,12 @@ the message =entry=.  The record itself is sent with each message.
   const EventEmitter = require('events').EventEmitter;
   const WLReader = require('./wl_reader');
   const WLParser = require('./wl_parser');
+  const REC_SEP  = /^$/;
 
   class WLType extends EventEmitter {
-      constructor(wlyear, rec_sep) {
+      constructor(wl_year, rec_sep=REC_SEP) {
           super();
-          this._wl_reader = new WLReader(wlyear, rec_sep);
+          this._wl_reader = new WLReader(wl_year, rec_sep);
       }
 
       parse() {
@@ -464,7 +470,7 @@ the message =entry=.  The record itself is sent with each message.
   describe('A WLType instance', () => {
       let data;
       beforeEach(() => {
-          data = new WLType(YEAR, REC_SEP);
+          data = new WLType(YEAR);
       });
       it('produces the event for TIME', done => {
           data.on('TIME', time_record => {
@@ -493,7 +499,7 @@ information, create an object, and emit a message with the check information.
 This module uses the WLType module to find types that contain check
 information, such as =EXPENSE= and =TRUST= payments.
 
-** Implement the WLChecks Module
+** Implementing the WLChecks Module
 
 #+caption:Implement the WLChecks module
 #+name:WLChecks-module
@@ -501,27 +507,59 @@ information, such as =EXPENSE= and =TRUST= payments.
   /* wl_check.js */
 
   const EventEmitter = require('events').EventEmitter;
-  const WLType = require('./wl_type');
+  const WLType       = require('./wl_type');
+  const REC_SEP      = /^$/;
+  const CHECK_RE     = /^(\$\d+[,]?\d*\.\d{2})\s::\s(.*)?\s::\s(\w+)\s+check\s+#\s*(\d+)/i;
+
+  /* types that could return checks:
+     - TRUST withdrawals
+     - EXPENSE
+  ,*/
 
   class WLChecks extends EventEmitter {
-      constructor(year, rec_sep) {
+      constructor(wl_year, rec_sep=REC_SEP) {
           super();
           this._checks = [];
-          const wltype = new WLType(year, rec_sep);
+
+          const wltype = new WLType(wl_year, rec_sep);
+
           wltype.on('TRUST', trust_record => {
-              this.emit('check', trust_record);
-              this._checks.push(trust_record);
-              /* parse the trust record for check info */
+              if (trust_record.verb === 'WITHDRAWAL') {
+                  this._parseCheck(trust_record);
+              }
+
+          }).on('EXPENSE', expense_record => {
+              this._parseCheck(expense_record);
+
           }).on('parsed', () => {
               this.emit('checked', this._checks);
+
           }).on('error', err => {
               console.error(`Received an error: ${err.message}`);
               throw(err);
+
           });
+
           wltype.parse();
       }
 
-      get all() {
+      _parseCheck(record) {
+          let check_info;
+          let check_data = {};
+          if ((check_info = CHECK_RE.exec(record.message))) {
+              check_data.start_date = record.start_date;
+              check_data.checkno = check_info[4];
+              check_data.payee   = check_info[2];
+              check_data.acct    = check_info[3];
+              check_data.amount  = check_info[1];
+              check_data.subject = record.subject;
+              check_data.caseno  = record.caseno;
+              this._checks.push(check_data);
+              this.emit('check', check_data);
+          }
+      }
+
+      get allChecks() {
           return this._checks;
       }
   }
@@ -540,24 +578,36 @@ information, such as =EXPENSE= and =TRUST= payments.
 
   const WLChecks = require('../src/wl_checks');
   const YEAR     = new Date().getUTCFullYear();
-  const REC_SEP  = /^$/;
+  //const REC_SEP  = /^$/;
 
   let checks;
 
-  beforeAll(done => {
-      checks = new WLChecks(YEAR, REC_SEP);
-      done();
-  });
-
   describe('WLChecks', () => {
       it('checks is a WLChecks', () => {
-          expect(checks).toBeInstanceOf(WLChecks);
+          expect(new WLChecks(2016)).toBeInstanceOf(WLChecks);
       });
   });
 
   describe('An instance of WLChecks', () => {
-      test('checks is an Array', () => {
-          expect(checks.all).toBeInstanceOf(Array);
+      it('checks is an Array', () => {
+          expect((new WLChecks(2016)).allChecks).toBeInstanceOf(Array);
+      });
+  });
+
+  describe('A check', () => {
+      it('has amount, payee, acct, checkno', done => {
+          const checks = new WLChecks(2019);
+          checks.on('check', checkCheck);
+          function checkCheck(check) {
+              expect(check).toHaveProperty('start_date', expect.any(String));
+              expect(check).toHaveProperty('checkno', expect.any(String));
+              expect(check).toHaveProperty('payee', expect.any(String));
+              expect(check).toHaveProperty('acct', expect.any(String));
+              expect(check).toHaveProperty('amount', expect.any(String));
+              expect(check).toHaveProperty('subject', expect.any(String));
+              expect(check).toHaveProperty('caseno', expect.any(String));
+              done();
+          }
       });
   });
 #+end_src
