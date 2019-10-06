@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-05 18:26
-#+macro:version Version 0.0.12
+#+date:2019-10-06 08:23
+#+macro:version Version 0.0.13
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -509,7 +509,7 @@ information, such as =EXPENSE= and =TRUST= payments.
   const EventEmitter = require('events').EventEmitter;
   const WLType       = require('./wl_type');
   const REC_SEP      = /^$/;
-  const CHECK_RE     = /^(\$\d+[,]?\d*\.\d{2})\s?::\s?(.*)?\s?::\s?(\w+)\s+check\s+#\s*(\d+)/i;
+  const CHECK_RE     = /^(\$\d+[,]?\d*\.\d{2})\s?::\s?(.*?)\s?(?:\s?::\s?(.*?))?\s?::\s?(\w+)\s+check\s+#\s*(\d+)/i;
 
   /* types that could return checks:
      - TRUST withdrawals
@@ -547,19 +547,17 @@ information, such as =EXPENSE= and =TRUST= payments.
           let check_info;
           let check_data = {};
           if ((check_info = CHECK_RE.exec(record.message))) {
+              check_data.type = record.type;
               check_data.start_date = record.start_date;
-              check_data.checkno = check_info[4];
+              check_data.checkno = check_info[5];
               check_data.payee   = check_info[2];
-              check_data.acct    = check_info[3];
+              check_data.acct    = check_info[4];
               check_data.amount  = check_info[1];
+              check_data.purpose = check_info[3];
               check_data.subject = record.subject;
               check_data.caseno  = record.caseno;
               this.emit('check', check_data);
           }
-      }
-
-      get allChecks() {
-          return this._checks;
       }
   }
 
@@ -588,19 +586,22 @@ information, such as =EXPENSE= and =TRUST= payments.
   });
 
   describe('A check', () => {
-      it('has amount, payee, acct, checkno', done => {
-          const checks = new WLChecks(2019);
+      it('has the proper components', done => {
+          const checks = new WLChecks(2017);
           checks.on('check', checkCheck);
+          checks.on('checked', done);
           checks.findChecks();
           function checkCheck(check) {
+              console.log(check);
+              expect(check).toHaveProperty('type', expect.any(String));
               expect(check).toHaveProperty('start_date', expect.any(String));
               expect(check).toHaveProperty('checkno', expect.any(String));
               expect(check).toHaveProperty('payee', expect.any(String));
               expect(check).toHaveProperty('acct', expect.any(String));
               expect(check).toHaveProperty('amount', expect.any(String));
+              expect(check).toHaveProperty('purpose', expect.any(String));
               expect(check).toHaveProperty('subject', expect.any(String));
               expect(check).toHaveProperty('caseno', expect.any(String));
-              done();
           }
       });
   });
