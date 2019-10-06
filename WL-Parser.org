@@ -3,7 +3,7 @@
 #+title:WL-Parser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-05 10:21
+#+date:2019-10-05 17:27
 #+macro:version Version 0.0.10
 
 #+begin_src elisp :results silent :exports results
@@ -47,8 +47,8 @@ fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 cat package.json
 #+end_src
 
-* The WLParser Module
-A proper worklog entry conforms to the following structure:
+* The WLRecord Module
+A proper worklog record conforms to the following structure:
 
 #+begin_example
 1. datetime start: 2019-01-31T10:54:00
@@ -139,7 +139,7 @@ array's second position.
 
   const {wl_re, WL_COMPONENTS} = require('./wl_re.js');
 
-  class WLParser {
+  class WLRecord {
 
       constructor(wl_record) {
           const parsed = wl_re.exec(wl_record);
@@ -164,7 +164,7 @@ array's second position.
       }
   }
 
-  module.exports = WLParser;
+  module.exports = WLRecord;
 #+end_src
 
 #+RESULTS: wl_parser-module
@@ -203,7 +203,7 @@ message detail and enclosing dotted lines.
 
   `;
 
-  describe('The WLParser', () => {
+  describe('The WLRecord', () => {
       test('throws with an invalid entry', () => {
           expect(() => {
               new Parser('abc')
@@ -364,7 +364,7 @@ reading all records.
 
   const path    = require('path');
   const WLR     = require('../src/wl_reader');
-  const WLParser= require('../src/wl_parser');
+  const WLRecord= require('../src/wl_parser');
   const WORKLOG = process.env.WORKLOG;
   const YEAR    = (new Date()).getUTCFullYear();
   const REC_SEP = /^$/;
@@ -394,7 +394,7 @@ reading all records.
           let entry;
           const wlr = new WLR(YEAR);
           wlr.on('entry', entry => {
-              entry = new WLParser(entry);
+              entry = new WLRecord(entry);
           }).on('done', done);
 
           wlr.read();
@@ -406,7 +406,7 @@ reading all records.
 
 * The WLType Module
 The WLType class receives each of the worklog records from the WLReader, parses
-the record using the WLParser, and emits messages for each type of record
+the record using the WLRecord, and emits messages for each type of record
 found, such as TIME, EXPENSE, PAYMENT, etc, as well as for each record under
 the message =entry=.  The record itself is sent with each message.
 
@@ -419,7 +419,7 @@ the message =entry=.  The record itself is sent with each message.
 
   const EventEmitter = require('events').EventEmitter;
   const WLReader = require('./wl_reader');
-  const WLParser = require('./wl_parser');
+  const WLRecord = require('./wl_parser');
   const REC_SEP  = /^$/;
 
   class WLType extends EventEmitter {
@@ -430,7 +430,7 @@ the message =entry=.  The record itself is sent with each message.
 
       parse() {
           this._wl_reader.on('entry', wl_record => {
-              const record = new WLParser(wl_record);
+              const record = new WLRecord(wl_record);
               this.emit('record', record);
               this.emit(record.type, record);
           }).on('done', () => this.emit('parsed'));
