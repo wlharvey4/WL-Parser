@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-05 18:14
-#+macro:version Version 0.0.11
+#+date:2019-10-05 18:26
+#+macro:version Version 0.0.12
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -509,7 +509,7 @@ information, such as =EXPENSE= and =TRUST= payments.
   const EventEmitter = require('events').EventEmitter;
   const WLType       = require('./wl_type');
   const REC_SEP      = /^$/;
-  const CHECK_RE     = /^(\$\d+[,]?\d*\.\d{2})\s::\s(.*)?\s::\s(\w+)\s+check\s+#\s*(\d+)/i;
+  const CHECK_RE     = /^(\$\d+[,]?\d*\.\d{2})\s?::\s?(.*)?\s?::\s?(\w+)\s+check\s+#\s*(\d+)/i;
 
   /* types that could return checks:
      - TRUST withdrawals
@@ -519,11 +519,11 @@ information, such as =EXPENSE= and =TRUST= payments.
   class WLChecks extends EventEmitter {
       constructor(wl_year, rec_sep=REC_SEP) {
           super();
-          this._checks = [];
+          this._wl_type = new WLType(wl_year, rec_sep);
+      }
 
-          const wltype = new WLType(wl_year, rec_sep);
-
-          wltype.on('TRUST', trust_record => {
+      findChecks() {
+          this._wl_type.on('TRUST', trust_record => {
               if (trust_record.verb === 'WITHDRAWAL') {
                   this._parseCheck(trust_record);
               }
@@ -540,7 +540,7 @@ information, such as =EXPENSE= and =TRUST= payments.
 
           });
 
-          wltype.parse();
+          this._wl_type.parse();
       }
 
       _parseCheck(record) {
@@ -554,7 +554,6 @@ information, such as =EXPENSE= and =TRUST= payments.
               check_data.amount  = check_info[1];
               check_data.subject = record.subject;
               check_data.caseno  = record.caseno;
-              this._checks.push(check_data);
               this.emit('check', check_data);
           }
       }
@@ -588,16 +587,11 @@ information, such as =EXPENSE= and =TRUST= payments.
       });
   });
 
-  describe('An instance of WLChecks', () => {
-      it('checks is an Array', () => {
-          expect((new WLChecks(2016)).allChecks).toBeInstanceOf(Array);
-      });
-  });
-
   describe('A check', () => {
       it('has amount, payee, acct, checkno', done => {
           const checks = new WLChecks(2019);
           checks.on('check', checkCheck);
+          checks.findChecks();
           function checkCheck(check) {
               expect(check).toHaveProperty('start_date', expect.any(String));
               expect(check).toHaveProperty('checkno', expect.any(String));
