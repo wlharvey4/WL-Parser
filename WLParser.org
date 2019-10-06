@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-06 08:28
-#+macro:version Version 0.0.14
+#+date:2019-10-06 20:34
+#+macro:version Version 0.1.0
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -31,13 +31,22 @@ yarn init -yp
 yarn add --dev jest
 #+end_src
 
-** Add a =test= Script to ~package.json~
+** Add a =test= Script to ~package.json~ and Update Version
+#+cindex:@file{package.json}
+#+cindex:script, test
+#+cindex:test script
+#+cindex:version number
+This package uses Jest to test the modules.  At this point, also change the
+version number.
+
 #+caption:Add /tests/ script to ~package.json~
 #+name:add-tests-script-to-package.json
 #+header: :results output :exports both
 #+begin_src js
 const fs = require('fs');
 const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+package.version = "0.1.0";
+package.main = "./src";
 package.scripts = {"tests": "jest"};
 fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 #+end_src
@@ -46,6 +55,9 @@ fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 #+begin_src sh :results output :exports both
 cat package.json
 #+end_src
+
+*** TODO Auto-Update the Version Number
+Figure out a way to auto-update the version number above.
 
 * The WLRecord Module
 A proper worklog record conforms to the following structure:
