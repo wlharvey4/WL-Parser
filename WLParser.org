@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-07 16:24
-#+macro:version Version 0.1.1
+#+date:2019-10-07 16:29
+#+macro:version Version 0.1.2
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -66,10 +66,10 @@ cat package.json
   /* WLParser/index.js */
 
   module.exports = {
-      WLRecord: require('./src/wl_record'),
-      WLReader: require('./src/wl_reader'),
-      WLType:   require('./src/wl_type'),
-      WLChecks: require('./src/wl_checks')
+      WLRecord: require('./lib/wl_record'),
+      WLReader: require('./lib/wl_reader'),
+      WLType:   require('./lib/wl_type'),
+      WLChecks: require('./lib/wl_checks')
   };
 #+END_SRC
 
@@ -113,7 +113,7 @@ only SPACES, and not TABS.
 #+caption:WLRE Configuration File for a WLRecord
 #+name:WLRE-configuration-for-WLRecord
 #+header: :mkdirp yes
-#+begin_src js -n :tangle src/wl_re.js
+#+begin_src js -n :tangle lib/wl_re.js
   /* wl_re.js */
 
   /* KEYS OF A WLRECORD OBJECT */
@@ -165,7 +165,7 @@ array's second position.
 #+caption:The WLRecord Module
 #+name:WLRecord-module
 #+header: :mkdirp yes
-#+begin_src js :tangle src/wl_record.js
+#+begin_src js :tangle lib/wl_record.js
   /* wl_record.js */
 
   const {wl_re, WL_COMPONENTS} = require('./wl_re.js');
@@ -207,7 +207,7 @@ message detail and enclosing dotted lines.
 
 #+header: :mkdirp yes
 #+begin_src js -n :tangle __tests__/wl_record.test.js
-      const Parser = require('../src/wl_record');
+      const Parser = require('../lib/wl_record');
 
       const STR=
   `2019-01-02T10:30:00
@@ -250,8 +250,8 @@ message detail and enclosing dotted lines.
 #+caption:Check WL_RE
 #+name:check-wl_re
 #+header: :mkdirp yes
-#+begin_src js -n :tangle src/check.js
-  const {wl_re, WL_COMPONENTS} = require('../src/wl_re.js');
+#+begin_src js -n :tangle lib/check.js
+  const {wl_re, WL_COMPONENTS} = require('../lib/wl_re.js');
 
   const STR=`2019-01-02T10:30:00
           180704
@@ -311,7 +311,7 @@ reading all records.
 #+caption:Implementation of the WLReader
 #+name:WLReader-class
 #+header: :mkdirp yes
-#+begin_src js -n :tangle src/wl_reader.js
+#+begin_src js -n :tangle lib/wl_reader.js
     /* wl_reader.js */
 
   const EventEmitter = require('events').EventEmitter;
@@ -392,8 +392,8 @@ reading all records.
   /* log_reader.test.js */
 
   const path    = require('path');
-  const WLR     = require('../src/wl_reader');
-  const WLRecord= require('../src/wl_record');
+  const WLR     = require('../lib/wl_reader');
+  const WLRecord= require('../lib/wl_record');
   const WORKLOG = process.env.WORKLOG;
   const YEAR    = (new Date()).getUTCFullYear();
   const REC_SEP = /^$/;
@@ -443,7 +443,7 @@ the message =entry=.  The record itself is sent with each message.
 
 #+caption:Implementing the WLType module
 #+name:WLType-module
-#+begin_src js -n :tangle src/wl_type.js
+#+begin_src js -n :tangle lib/wl_type.js
   /* wl_data.js */
 
   const EventEmitter = require('events').EventEmitter;
@@ -478,8 +478,8 @@ the message =entry=.  The record itself is sent with each message.
 #+begin_src js -n :tangle __tests__/wl_type.test.js
   /* wl_type.test.js */
 
-  const WLType = require('../src/wl_type');
-  const {wl_re, WL_COMPONENTS} = require('../src/wl_re');
+  const WLType = require('../lib/wl_type');
+  const {wl_re, WL_COMPONENTS} = require('../lib/wl_re');
   const YEAR     = (new Date()).getUTCFullYear();
   const REC_SEP  = /^$/;
 
@@ -532,7 +532,7 @@ information, such as =EXPENSE= and =TRUST= payments.
 
 #+caption:Implement the WLChecks module
 #+name:WLChecks-module
-#+begin_src js -n :tangle src/wl_checks.js
+#+begin_src js -n :tangle lib/wl_checks.js
   /* wl_check.js */
 
   const EventEmitter = require('events').EventEmitter;
@@ -602,7 +602,7 @@ information, such as =EXPENSE= and =TRUST= payments.
 #+begin_src js -n :tangle __tests__/wl_checks.test.js
   /* wl_checks.test.js */
 
-  const WLChecks = require('../src/wl_checks');
+  const WLChecks = require('../lib/wl_checks');
   const YEAR     = new Date().getUTCFullYear();
   //const REC_SEP  = /^$/;
 
@@ -650,10 +650,10 @@ clean:
 
 clean-world:	clean
 	-rm *.{info,texi,json,lock,js}
-	-rm -rf src/ __tests__/ node_modules/
+	-rm -rf lib/ __tests__/ node_modules/
 
 check:
-	node src/check.js
+	node lib/check.js
 #+end_src
 
 * Concept Index
