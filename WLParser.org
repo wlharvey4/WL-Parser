@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-06 20:34
-#+macro:version Version 0.1.0
+#+date:2019-10-07 16:24
+#+macro:version Version 0.1.1
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -45,16 +45,33 @@ version number.
 #+begin_src js
 const fs = require('fs');
 const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-package.version = "0.1.0";
-package.main = "./src";
+package.version = "0.1.1";
+package.main = "index.js";
 package.scripts = {"tests": "jest"};
 fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 #+end_src
+
+#+RESULTS: add-tests-script-to-package.json
 
 #+caption:The ~package.json~ file with added /tests/ script
 #+begin_src sh :results output :exports both
 cat package.json
 #+end_src
+
+** Add an ~index.js~ Package File
+#+caption:WLParser ~index.js~ File
+#+name:WLParser-index.js-file
+#+header: :results output :exports both
+#+BEGIN_SRC js -n :tangle index.js
+  /* WLParser/index.js */
+
+  module.exports = {
+      WLRecord: require('./src/wl_record'),
+      WLReader: require('./src/wl_reader'),
+      WLType:   require('./src/wl_type'),
+      WLChecks: require('./src/wl_checks')
+  };
+#+END_SRC
 
 *** TODO Auto-Update the Version Number
 Figure out a way to auto-update the version number above.
@@ -632,7 +649,7 @@ clean:
 	-rm *~
 
 clean-world:	clean
-	-rm *.{info,texi,json,lock}
+	-rm *.{info,texi,json,lock,js}
 	-rm -rf src/ __tests__/ node_modules/
 
 check:
@@ -654,5 +671,4 @@ check:
 # Local Variables:
 # time-stamp-pattern:"8/^\\#\\+date:%4y-%02m-%02d %02H:%02M$"
 # eval: (org-indent-mode)
-# eval: (electric-quote-local-mode)
 # End:
