@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-07 16:29
-#+macro:version Version 0.1.2
+#+date:2019-10-09 08:29
+#+macro:version Version 0.1.3
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -66,10 +66,10 @@ cat package.json
   /* WLParser/index.js */
 
   module.exports = {
-      WLRecord: require('./lib/wl_record'),
-      WLReader: require('./lib/wl_reader'),
-      WLType:   require('./lib/wl_type'),
-      WLChecks: require('./lib/wl_checks')
+      WLRecord: require('./lib/wlrecord'),
+      WLReader: require('./lib/wlreader'),
+      WLType:   require('./lib/wltype'),
+      WLChecks: require('./lib/wlchecks')
   };
 #+END_SRC
 
@@ -113,8 +113,8 @@ only SPACES, and not TABS.
 #+caption:WLRE Configuration File for a WLRecord
 #+name:WLRE-configuration-for-WLRecord
 #+header: :mkdirp yes
-#+begin_src js -n :tangle lib/wl_re.js
-  /* wl_re.js */
+#+begin_src js -n :tangle lib/wlre.js
+  /* wlre.js */
 
   /* KEYS OF A WLRECORD OBJECT */
   const WL_COMPONENTS = [
@@ -141,7 +141,7 @@ only SPACES, and not TABS.
   const FLAGS       = 'ms';
 
   /* COMBINED REGULAR EXPRESSION FOR ENTIRE WORKLOG ENTRY */
-  const wl_re = new RegExp(
+  const wlre = new RegExp(
     DATETIME_RE  +
     CASE_RE      +
     SUBJ_VERB_RE +
@@ -152,11 +152,11 @@ only SPACES, and not TABS.
     FLAGS
   );
 
-  module.exports = {wl_re, WL_COMPONENTS};
+  module.exports = {wlre, WL_COMPONENTS};
 #+end_src
 
 ** Create the WLRecord Module
-The following class receives a worklog record as a string and uses the ~wl_re~
+The following class receives a worklog record as a string and uses the ~wlre~
 module to parse and return its components.  Note that the parser must check
 each WL_COMPONENT entry for an object (array in this case), and if one is
 found, then it runs the entry through the supplied lambda expression in the
@@ -165,18 +165,18 @@ array's second position.
 #+caption:The WLRecord Module
 #+name:WLRecord-module
 #+header: :mkdirp yes
-#+begin_src js :tangle lib/wl_record.js
-  /* wl_record.js */
+#+begin_src js :tangle lib/wlrecord.js
+  /* wlrecord.js */
 
-  const {wl_re, WL_COMPONENTS} = require('./wl_re.js');
+  const {wlre, WL_COMPONENTS} = require('./wlre.js');
 
   class WLRecord {
 
-      constructor(wl_record) {
-          const parsed = wl_re.exec(wl_record);
+      constructor(wlrecord) {
+          const parsed = wlre.exec(wlrecord);
 
           if (!parsed) { 
-              throw ReferenceError(`wl_record:\n${wl_record}\nfailed to parse`)
+              throw ReferenceError(`wlrecord:\n${wlrecord}\nfailed to parse`)
           }
 
            parsed.forEach((e,i) => {
@@ -206,8 +206,8 @@ there is no space before either datetime and there is one space only before the
 message detail and enclosing dotted lines.
 
 #+header: :mkdirp yes
-#+begin_src js -n :tangle __tests__/wl_record.test.js
-      const Parser = require('../lib/wl_record');
+#+begin_src js -n :tangle __tests__/wlrecord.test.js
+      const Parser = require('../lib/wlrecord');
 
       const STR=
   `2019-01-02T10:30:00
@@ -246,12 +246,12 @@ message detail and enclosing dotted lines.
   });
 #+end_src
 
-** Check the ~wl_re~ Regular Expression Implementation
-#+caption:Check WL_RE
-#+name:check-wl_re
+** Check the ~wlre~ Regular Expression Implementation
+#+caption:Check WLRE
+#+name:check-wlre
 #+header: :mkdirp yes
 #+begin_src js -n :tangle lib/check.js
-  const {wl_re, WL_COMPONENTS} = require('../lib/wl_re.js');
+  const {wlre, WL_COMPONENTS} = require('../lib/wlre.js');
 
   const STR=`2019-01-02T10:30:00
           180704
@@ -275,7 +275,7 @@ message detail and enclosing dotted lines.
 
   `;
 
-  const result = wl_re.exec(STR);
+  const result = wlre.exec(STR);
 
   const start_date = RegExp.$1;
   const start_time = RegExp.$2;
@@ -311,8 +311,8 @@ reading all records.
 #+caption:Implementation of the WLReader
 #+name:WLReader-class
 #+header: :mkdirp yes
-#+begin_src js -n :tangle lib/wl_reader.js
-    /* wl_reader.js */
+#+begin_src js -n :tangle lib/wlreader.js
+    /* wlreader.js */
 
   const EventEmitter = require('events').EventEmitter;
   const fs       = require('fs');
@@ -388,12 +388,12 @@ reading all records.
 
 #+caption:Testing the WLReader
 #+name:test-log-reader
-#+begin_src js -n :tangle __tests__/wl_reader.test.js
+#+begin_src js -n :tangle __tests__/wlreader.test.js
   /* log_reader.test.js */
 
   const path    = require('path');
-  const WLR     = require('../lib/wl_reader');
-  const WLRecord= require('../lib/wl_record');
+  const WLR     = require('../lib/wlreader');
+  const WLRecord= require('../lib/wlrecord');
   const WORKLOG = process.env.WORKLOG;
   const YEAR    = (new Date()).getUTCFullYear();
   const REC_SEP = /^$/;
@@ -443,28 +443,28 @@ the message =entry=.  The record itself is sent with each message.
 
 #+caption:Implementing the WLType module
 #+name:WLType-module
-#+begin_src js -n :tangle lib/wl_type.js
-  /* wl_data.js */
+#+begin_src js -n :tangle lib/wltype.js
+  /* wltype.js */
 
   const EventEmitter = require('events').EventEmitter;
-  const WLReader = require('./wl_reader');
-  const WLRecord = require('./wl_record');
+  const WLReader = require('./wlreader');
+  const WLRecord = require('./wlrecord');
   const REC_SEP  = /^$/;
 
   class WLType extends EventEmitter {
       constructor(wl_year, rec_sep=REC_SEP) {
           super();
-          this._wl_reader = new WLReader(wl_year, rec_sep);
+          this._wlreader = new WLReader(wl_year, rec_sep);
       }
 
       parse() {
-          this._wl_reader.on('entry', wl_record => {
-              const record = new WLRecord(wl_record);
+          this._wlreader.on('entry', wlrecord => {
+              const record = new WLRecord(wlrecord);
               this.emit('record', record);
               this.emit(record.type, record);
           }).on('done', () => this.emit('parsed'));
 
-          this._wl_reader.read();
+          this._wlreader.read();
       }
   }
 
@@ -475,11 +475,11 @@ the message =entry=.  The record itself is sent with each message.
 
 #+caption:Testing the WLType module
 #+name:WLType-module-tests
-#+begin_src js -n :tangle __tests__/wl_type.test.js
-  /* wl_type.test.js */
+#+begin_src js -n :tangle __tests__/wltype.test.js
+  /* wltype.test.js */
 
-  const WLType = require('../lib/wl_type');
-  const {wl_re, WL_COMPONENTS} = require('../lib/wl_re');
+  const WLType = require('../lib/wltype');
+  const {wlre, WL_COMPONENTS} = require('../lib/wlre');
   const YEAR     = (new Date()).getUTCFullYear();
   const REC_SEP  = /^$/;
 
@@ -532,11 +532,11 @@ information, such as =EXPENSE= and =TRUST= payments.
 
 #+caption:Implement the WLChecks module
 #+name:WLChecks-module
-#+begin_src js -n :tangle lib/wl_checks.js
+#+begin_src js -n :tangle lib/wlchecks.js
   /* wl_check.js */
 
   const EventEmitter = require('events').EventEmitter;
-  const WLType       = require('./wl_type');
+  const WLType       = require('./wltype');
   const REC_SEP      = /^$/;
   const CHECK_RE     = /^(\$\d+[,]?\d*\.\d{2})\s?::\s?(.*?)\s?::\s?(.*?)\s?::\s?(\w+)\s+check\s+#\s*(\d+)/i;
 
@@ -548,11 +548,11 @@ information, such as =EXPENSE= and =TRUST= payments.
   class WLChecks extends EventEmitter {
       constructor(wl_year, rec_sep=REC_SEP) {
           super();
-          this._wl_type = new WLType(wl_year, rec_sep);
+          this._wltype = new WLType(wl_year, rec_sep);
       }
 
       findChecks() {
-          this._wl_type.on('TRUST', trust_record => {
+          this._wltype.on('TRUST', trust_record => {
               if (trust_record.verb === 'WITHDRAWAL') {
                   this._parseCheck(trust_record);
               }
@@ -569,7 +569,7 @@ information, such as =EXPENSE= and =TRUST= payments.
 
           });
 
-          this._wl_type.parse();
+          this._wltype.parse();
       }
 
       _parseCheck(record) {
@@ -599,10 +599,10 @@ information, such as =EXPENSE= and =TRUST= payments.
 
 #+caption:Test the WLChecks module
 #+name:WLChecks-module-test
-#+begin_src js -n :tangle __tests__/wl_checks.test.js
-  /* wl_checks.test.js */
+#+begin_src js -n :tangle __tests__/wlchecks.test.js
+  /* wlchecks.test.js */
 
-  const WLChecks = require('../lib/wl_checks');
+  const WLChecks = require('../lib/wlchecks');
   const YEAR     = new Date().getUTCFullYear();
   //const REC_SEP  = /^$/;
 
@@ -649,11 +649,23 @@ clean:
 	-rm *~
 
 clean-world:	clean
-	-rm *.{info,texi,json,lock,js}
+	-rm *.{info,texi,pdf,json,lock,js}
 	-rm -rf lib/ __tests__/ node_modules/
+
+clean-prod: clean
+	-rm *.texi lib/check.js
+	-rm -rf node_modules/ __tests__/
 
 check:
 	node lib/check.js
+
+WLParser.pdf: WLParser.texi
+	pdftexi2dvi -q -c WLParser.texi
+
+pdf:	WLParser.pdf
+
+open-pdf: pdf
+	open WLParser.pdf
 #+end_src
 
 * Concept Index
