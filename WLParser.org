@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-09 08:29
-#+macro:version Version 0.1.3
+#+date:2019-10-11 09:52
+#+macro:version Version 0.1.4
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -581,7 +581,7 @@ information, such as =EXPENSE= and =TRUST= payments.
               check_data.checkno = check_info[5];
               check_data.payee   = check_info[2];
               check_data.acct    = check_info[4];
-              check_data.amount  = check_info[1];
+              check_data.amount  = parseFloat(check_info[1].replace(/^\$/, ''));
               check_data.purpose = check_info[3];
               check_data.subject = record.subject;
               check_data.caseno  = record.caseno;
@@ -627,7 +627,7 @@ information, such as =EXPENSE= and =TRUST= payments.
               expect(check).toHaveProperty('checkno', expect.any(String));
               expect(check).toHaveProperty('payee', expect.any(String));
               expect(check).toHaveProperty('acct', expect.any(String));
-              expect(check).toHaveProperty('amount', expect.any(String));
+              expect(check).toHaveProperty('amount', expect.any(Number));
               expect(check).toHaveProperty('purpose', expect.any(String));
               expect(check).toHaveProperty('subject', expect.any(String));
               expect(check).toHaveProperty('caseno', expect.any(String));
