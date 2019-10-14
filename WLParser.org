@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-14 12:58
-#+macro:version Dev Version 0.2.1
+#+date:2019-10-14 22:42
+#+macro:version Version 0.2.2
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -45,7 +45,7 @@ version number.
 #+begin_src js
 const fs = require('fs');
 const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-package.version = "0.2.1";
+package.version = "0.2.2";
 package.main = "index.js";
 package.scripts = {"tests": "jest"};
 fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
@@ -645,7 +645,7 @@ information, such as =EXPENSE= and =TRUST= payments.
 #+begin_src make -n :tangle Makefile
 DOCS = docs
 
-.PHONY:	clean clean-world clean-prod check pdf open-pdf
+.PHONY:	clean clean-dist clean-world prod install-docs install-info install-pdf open-pdf check
 
 clean:
 	-rm *~
@@ -656,11 +656,9 @@ clean-dist: clean
 clean-world:	clean-dist
 	-rm *.{info,texi,pdf,json,lock,js}
 
-
 # Create a directory ready to be saved as branch:prod
-prod: clean $(DOCS)
-	git checkout dev
-	-rm *{.texi,org} lib/check.js docs/.touchstone Makefile
+prod: dev install-docs
+	-rm *{.texi,org} lib/check.js Makefile
 	-rm -rf node_modules/ __tests__/
 	git checkout -B prod
 	git add -A .
@@ -668,29 +666,36 @@ prod: clean $(DOCS)
 	git tag -f -m "tag:Prod" Prod
 	git push -f --tags origin prod
 
+dev: clean-world
+	git checkout dev
+
 # Create a docs/ directory and move the .info and .pdf files into it
-$(DOCS): move-info make-pdf
+install-docs: install-info install-pdf
 
 # Create a docs/ dir if necessary; move .info file into it
-move-info: docs-dir $(DOCS)/WLParser.info
-$(DOCS)/WLParser.info:
-	mv -v WLParser.info $(DOCS)
+install-info: $(DOCS)/WLParser.info
 
-# Create a docs/ dir if necessary; create a .pdf file; move it into docs/
-make-pdf: docs-dir $(DOCS)/WLParser.pdf
-$(DOCS)/WLParser.pdf:
+# Create a docs/ dir if necessary and install the .info file into the docs/ dir
+$(DOCS)/WLParser.info: | docs-dir
+	mv -v WLParser.info $(dir $@)
+
+# Install a pdf file into a docs/ dir
+install-pdf: $(DOCS)/WLParser.pdf
+
+# Create a docs/ dir if necessary; create a .pdf file; move it into the docs/ dir
+# NOTE that the .texi file must exist or this will throw an error
+# TODO: need to figure out how to create the .texi file from the .org source from a script
+$(DOCS)/WLParser.pdf: WLParser.texi | docs-dir
 	pdftexi2dvi -q -c WLParser.texi
-	mv -v WLParser.pdf $(DOCS)
+	mv -v WLParser.pdf $(dir $@)
 
-open-pdf: make-pdf
+open-pdf: install-pdf
 	open $(DOCS)/WLParser.pdf
 
 # Create a docs/ dir just once
-docs-dir: touchstone
-touchstone: $(DOCS)/.touchstone
-$(DOCS)/.touchstone:
+docs-dir: $(DOCS)
+$(DOCS):
 	mkdir -vp $(DOCS)
-	touch $(DOCS)/.touchstone
 
 # Run a test file
 check:
