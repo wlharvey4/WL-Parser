@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-14 09:15
-#+macro:version Version 0.1.5
+#+date:2019-10-14 09:23
+#+macro:version Version 0.2.0
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
