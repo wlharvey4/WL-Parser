@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-11 09:52
-#+macro:version Version 0.1.4
+#+date:2019-10-14 09:15
+#+macro:version Version 0.1.5
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -319,12 +319,12 @@ reading all records.
   const path     = require('path');
   const rl       = require('readline');
   const TODAY    = new Date();
-  const YEAR     = TODAY.getUTCFullYear(TODAY);
+  const YEAR     = TODAY.getUTCFullYear();
   const MIN_YEAR = 2016;
+  const REC_SEP  = /^$/;
   const WORKLOG  = process.env.WORKLOG;
   if (!WORKLOG)
       throw new ReferenceError('Environment variable WORKLOG is undefined.');
-  const REC_SEP  = /^$/;
 
   class WLReader extends EventEmitter {
       constructor(wl_year, rec_sep=REC_SEP) {
@@ -643,7 +643,7 @@ information, such as =EXPENSE= and =TRUST= payments.
 #+caption:Makefile
 #+name:Makefile
 #+begin_src make -n :tangle Makefile
-.PHONY:	clean clean-world check
+.PHONY:	clean clean-world clean-prod check pdf open-pdf
 
 clean:
 	-rm *~
@@ -653,7 +653,7 @@ clean-world:	clean
 	-rm -rf lib/ __tests__/ node_modules/
 
 clean-prod: clean
-	-rm *.texi lib/check.js
+	-rm *{.texi,org} lib/check.js
 	-rm -rf node_modules/ __tests__/
 
 check:
