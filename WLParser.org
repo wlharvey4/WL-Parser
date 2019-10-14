@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-14 09:23
-#+macro:version Version 0.2.0
+#+date:2019-10-14 12:58
+#+macro:version Dev Version 0.2.1
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -45,7 +45,7 @@ version number.
 #+begin_src js
 const fs = require('fs');
 const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-package.version = "0.1.1";
+package.version = "0.2.1";
 package.main = "index.js";
 package.scripts = {"tests": "jest"};
 fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
@@ -643,29 +643,59 @@ information, such as =EXPENSE= and =TRUST= payments.
 #+caption:Makefile
 #+name:Makefile
 #+begin_src make -n :tangle Makefile
+DOCS = docs
+
 .PHONY:	clean clean-world clean-prod check pdf open-pdf
 
 clean:
 	-rm *~
 
-clean-world:	clean
+clean-dist: clean
+	-rm -rf $(DOCS) lib/ __tests__/ node_modules/
+
+clean-world:	clean-dist
 	-rm *.{info,texi,pdf,json,lock,js}
-	-rm -rf lib/ __tests__/ node_modules/
 
-clean-prod: clean
-	-rm *{.texi,org} lib/check.js
+
+# Create a directory ready to be saved as branch:prod
+prod: clean $(DOCS)
+	git checkout dev
+	-rm *{.texi,org} lib/check.js docs/.touchstone Makefile
 	-rm -rf node_modules/ __tests__/
+	git checkout -B prod
+	git add -A .
+	git commit -m "branch:prod"
+	git tag -f -m "tag:Prod" Prod
+	git push -f --tags origin prod
 
+# Create a docs/ directory and move the .info and .pdf files into it
+$(DOCS): move-info make-pdf
+
+# Create a docs/ dir if necessary; move .info file into it
+move-info: docs-dir $(DOCS)/WLParser.info
+$(DOCS)/WLParser.info:
+	mv -v WLParser.info $(DOCS)
+
+# Create a docs/ dir if necessary; create a .pdf file; move it into docs/
+make-pdf: docs-dir $(DOCS)/WLParser.pdf
+$(DOCS)/WLParser.pdf:
+	pdftexi2dvi -q -c WLParser.texi
+	mv -v WLParser.pdf $(DOCS)
+
+open-pdf: make-pdf
+	open $(DOCS)/WLParser.pdf
+
+# Create a docs/ dir just once
+docs-dir: touchstone
+touchstone: $(DOCS)/.touchstone
+$(DOCS)/.touchstone:
+	mkdir -vp $(DOCS)
+	touch $(DOCS)/.touchstone
+
+# Run a test file
 check:
 	node lib/check.js
 
-WLParser.pdf: WLParser.texi
-	pdftexi2dvi -q -c WLParser.texi
-
-pdf:	WLParser.pdf
-
-open-pdf: pdf
-	open WLParser.pdf
 #+end_src
 
 * Concept Index
