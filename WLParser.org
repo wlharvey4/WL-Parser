@@ -1,10 +1,10 @@
 # -*- mode:org; fill-column:79; -*-
 
 #+title:WLParser
-#+subtitle:{{{version}}} ({{{date}}})
+#+subtitle:{{{version}}}
 #+author:LOLH
-#+date:2019-10-14 22:57
-#+macro:version Version 0.2.3
+#+date:2019-10-15 00:52
+#+macro:version Version 0.2.4
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -54,14 +54,15 @@ fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 #+RESULTS: add-tests-script-to-package.json
 
 #+caption:The ~package.json~ file with added /tests/ script
+#+name:cat-package.json
 #+begin_src sh :results output :exports both
 cat package.json
 #+end_src
 
 ** Add an ~index.js~ Package File
-#+caption:WLParser ~index.js~ File
+#+caption:WLParser index.js File
 #+name:WLParser-index.js-file
-#+header: :results output :exports both
+#+header: :results output
 #+BEGIN_SRC js -n :tangle index.js
   /* WLParser/index.js */
 
@@ -595,8 +596,6 @@ information, such as =EXPENSE= and =TRUST= payments.
 
 ** Test the WLChecks Module
 
-{{{version}}} {{{date}}}
-
 #+caption:Test the WLChecks module
 #+name:WLChecks-module-test
 #+begin_src js -n :tangle __tests__/wlchecks.test.js
@@ -676,19 +675,22 @@ dev: clean-world
 # Create a docs/ directory and move the .info and .pdf files into it
 install-docs: install-info install-pdf
 
-# Create the .texi file from the .org source
 texi: WLParser.texi
 WLParser.texi: WLParser.org
-	emacs WLParser.org --batch -f org-texinfo-export-to-texinfo --kill
+	emacs WLParser.org --batch \
+	--eval='(setq org-export-use-babel nil)' \
+	-f org-texinfo-export-to-texinfo
 
-# Create the .info file from the .org source
-info: WLParser.org
-	emacs WLParser.org --batch -f org-texinfo-export-to-info --kill
+info: WLParser.info
+WLParser.info: WLParser.org
+	emacs WLParser.org --batch \
+	--eval='(setq org-confirm-babel-evaluate nil)' \
+	--eval='(require '\''ob-shell)' \
+	--eval='(org-babel-tangle-file "WLParser.org")' \
+	--eval='(org-texinfo-export-to-info)'
 
 # Create a docs/ dir if necessary; move .info file into it
 install-info: $(DOCS)/WLParser.info
-
-# Create a docs/ dir if necessary and install the .info file into the docs/ dir
 $(DOCS)/WLParser.info: info | docs-dir
 	mv -v WLParser.info $(dir $@)
 
