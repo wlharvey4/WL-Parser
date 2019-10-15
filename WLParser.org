@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}} ({{{date}}})
 #+author:LOLH
-#+date:2019-10-14 22:42
-#+macro:version Version 0.2.2
+#+date:2019-10-14 22:57
+#+macro:version Version 0.2.3
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -645,7 +645,9 @@ information, such as =EXPENSE= and =TRUST= payments.
 #+begin_src make -n :tangle Makefile
 DOCS = docs
 
-.PHONY:	clean clean-dist clean-world prod install-docs install-info install-pdf open-pdf check
+.PHONY:	clean clean-dist clean-world clean-prod
+.PHONY:	install-docs install-info install-pdf open-pdf
+.PHONY:	texi prod dev check
 
 clean:
 	-rm *~
@@ -656,10 +658,12 @@ clean-dist: clean
 clean-world:	clean-dist
 	-rm *.{info,texi,pdf,json,lock,js}
 
-# Create a directory ready to be saved as branch:prod
-prod: dev install-docs
+clean-prod: clean
 	-rm *{.texi,org} lib/check.js Makefile
 	-rm -rf node_modules/ __tests__/
+
+# Create a directory ready to be saved as branch:prod
+prod: dev install-docs clean-prod
 	git checkout -B prod
 	git add -A .
 	git commit -m "branch:prod"
@@ -672,11 +676,20 @@ dev: clean-world
 # Create a docs/ directory and move the .info and .pdf files into it
 install-docs: install-info install-pdf
 
+# Create the .texi file from the .org source
+texi: WLParser.texi
+WLParser.texi: WLParser.org
+	emacs WLParser.org --batch -f org-texinfo-export-to-texinfo --kill
+
+# Create the .info file from the .org source
+info: WLParser.org
+	emacs WLParser.org --batch -f org-texinfo-export-to-info --kill
+
 # Create a docs/ dir if necessary; move .info file into it
 install-info: $(DOCS)/WLParser.info
 
 # Create a docs/ dir if necessary and install the .info file into the docs/ dir
-$(DOCS)/WLParser.info: | docs-dir
+$(DOCS)/WLParser.info: info | docs-dir
 	mv -v WLParser.info $(dir $@)
 
 # Install a pdf file into a docs/ dir
