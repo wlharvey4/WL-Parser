@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}}
 #+author:LOLH
-#+date:2019-10-15 00:52
-#+macro:version Version 0.2.4
+#+date:2019-10-15 08:42
+#+macro:version Version 0.2.5
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -31,7 +31,9 @@ yarn init -yp
 yarn add --dev jest
 #+end_src
 
-** Add a =test= Script to ~package.json~ and Update Version
+** TODO Add a =test= Script to ~package.json~ and Update Version
+Figure out how to dynamically update the version number; using a macro does not
+seem to work.
 #+cindex:@file{package.json}
 #+cindex:script, test
 #+cindex:test script
@@ -42,16 +44,14 @@ version number.
 #+caption:Add /tests/ script to ~package.json~
 #+name:add-tests-script-to-package.json
 #+header: :results output :exports both
-#+begin_src js
+#+begin_src js :var ver="0.2.5"
 const fs = require('fs');
 const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-package.version = "0.2.2";
+package.version = ver;
 package.main = "index.js";
 package.scripts = {"tests": "jest"};
 fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
 #+end_src
-
-#+RESULTS: add-tests-script-to-package.json
 
 #+caption:The ~package.json~ file with added /tests/ script
 #+name:cat-package.json
@@ -677,25 +677,22 @@ install-docs: install-info install-pdf
 
 texi: WLParser.texi
 WLParser.texi: WLParser.org
-	emacs WLParser.org --batch \
+	emacs -Q --batch WLParser.org \
 	--eval='(setq org-export-use-babel nil)' \
 	-f org-texinfo-export-to-texinfo
 
-info: WLParser.info
-WLParser.info: WLParser.org
-	emacs WLParser.org --batch \
+info install-info: $(DOCS)/WLParser.info
+$(DOCS)/WLParser.info: WLParser.org | docs-dir
+	emacs -Q --batch WLParser.org \
 	--eval='(setq org-confirm-babel-evaluate nil)' \
 	--eval='(require '\''ob-shell)' \
+	--eval='(require '\''ob-js)' \
 	--eval='(org-babel-tangle-file "WLParser.org")' \
 	--eval='(org-texinfo-export-to-info)'
-
-# Create a docs/ dir if necessary; move .info file into it
-install-info: $(DOCS)/WLParser.info
-$(DOCS)/WLParser.info: info | docs-dir
 	mv -v WLParser.info $(dir $@)
 
 # Install a pdf file into a docs/ dir
-install-pdf: $(DOCS)/WLParser.pdf
+pdf install-pdf: $(DOCS)/WLParser.pdf
 
 # Create a docs/ dir if necessary; create a .pdf file; move it into the docs/ dir
 # NOTE that the .texi file must exist or this will throw an error
