@@ -1,0 +1,15 @@
+{
+  "name": "wlparser",
+  "version": "0.3.1",
+  "main": "index.js",
+  "repository": "ssh://git@github.com/wlharvey4/wlparser.git",
+  "author": "Wesley Harvey <pinecone062@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "jest": "^24.9.0"
+  },
+  "scripts": {
+    "tests": "jest"
+  }
+}
