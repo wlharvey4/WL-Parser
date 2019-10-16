@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}}
 #+author:LOLH
-#+date:2019-10-15 21:31
-#+macro:version Version 0.3.0
+#+date:2019-10-16 09:16
+#+macro:version Version 0.3.1
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -47,7 +47,7 @@ version number.
 #+begin_src js
 const fs = require('fs');
 const package = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-package.version = "0.3.0"
+package.version = "0.3.1"
 package.main = "index.js";
 package.scripts = {"tests": "jest"};
 fs.writeFileSync('package.json', JSON.stringify(package, null, 2));
@@ -666,7 +666,6 @@ prod: dev install-docs clean-prod
 	git checkout -B prod
 	git add -A .
 	git commit -m "branch:prod"
-	git tag -f -m "tag:Prod" Prod
 	git push -f --tags origin prod
 
 dev: clean-world
