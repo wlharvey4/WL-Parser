@@ -3,8 +3,8 @@
 #+title:WLParser
 #+subtitle:{{{version}}}
 #+author:LOLH
-#+date:2019-10-16 09:16
-#+macro:version Version 0.3.1
+#+date:2019-10-23 10:42
+#+macro:version Version 0.3.2
 
 #+begin_src elisp :results silent :exports results
 (org-babel-tangle-file "WLParser.org")
@@ -76,6 +76,28 @@ cat package.json
 
 *** TODO Auto-Update the Version Number
 Figure out a way to auto-update the version number above.
+
+#+caption:Update ~package.json~ Version Number
+#+name:update-package.json-version-number
+#+header: :mkdirp yes
+#+header: :shebang "#!/usr/bin/env sh"
+#+begin_src sh :tangle scripts/update-version.sh
+sed -i .bak -E -e '
+/\#\+macro: version Version/bx
+/,\/\\"version\\":/by
+b
+:x
+h
+s/^(.*macro: version Version )(.*)$/\2/
+x
+b
+:y
+H
+x
+s/\n//
+s/^([[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+)(.*)([[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+)/\2\1/
+' CSV-SQLite3.org
+#+end_src
 
 * The WLRecord Module
 A proper worklog record conforms to the following structure:
@@ -724,6 +746,11 @@ check:
 #+macro:heading @@texinfo:@heading @@$1
 #+macro:subheading @@texinfo:@subheading @@$1
 #+macro:noindent @@texinfo:@noindent @@
+
+* Options                                                          :noexport:
+#+startup: content 3
+#+startup: indent
+#+options: H:4 ':t
 
 * Local Variables                                                  :noexport:
 # Local Variables:
